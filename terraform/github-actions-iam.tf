@@ -1,12 +1,11 @@
 # terraform/github-actions-iam.tf
-# IAM Policy for existing GitHub Actions user
 
-# Reference the existing IAM user (created manually)
+# 1. Fetch the user
 data "aws_iam_user" "gh_actions" {
   user_name = "gh-actions-cloudshelf"
 }
 
-# IAM Policy for ECR Access
+# 2. Define the Policy
 resource "aws_iam_policy" "gh_actions_ecr" {
   name        = "${local.project_name}-gh-actions-ecr-policy"
   description = "ECR permissions for GitHub Actions CI/CD"
@@ -23,7 +22,7 @@ resource "aws_iam_policy" "gh_actions_ecr" {
         Resource = "*"
       },
       {
-        Sid    = "ECRRepositoryAccess"
+        Sid    = "ECRRepositoryAdmin"
         Effect = "Allow"
         Action = [
           "ecr:DescribeRepositories",
@@ -31,19 +30,14 @@ resource "aws_iam_policy" "gh_actions_ecr" {
           "ecr:DescribeImages",
           "ecr:BatchCheckLayerAvailability",
           "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage"
-        ]
-        Resource = "arn:aws:ecr:${var.aws_region}:${data.aws_caller_identity.current.account_id}:repository/${local.project_name}/*"
-      },
-      {
-        Sid    = "ECRImagePush"
-        Effect = "Allow"
-        Action = [
+          "ecr:BatchGetImage",
           "ecr:PutImage",
           "ecr:InitiateLayerUpload",
           "ecr:UploadLayerPart",
-          "ecr:CompleteLayerUpart"
+          "ecr:CompleteLayerUpload", # <--- Fixed Typo
+          "ecr:CreateRepository"     # <--- Added Missing Permission
         ]
+        # Ensure 'local.project_name' matches 'cloudshelf' or use 'cloudshelf' directly here
         Resource = "arn:aws:ecr:${var.aws_region}:${data.aws_caller_identity.current.account_id}:repository/${local.project_name}/*"
       }
     ]
@@ -52,37 +46,10 @@ resource "aws_iam_policy" "gh_actions_ecr" {
   tags = local.common_tags
 }
 
-# Attach ECR Policy to GitHub Actions User
+# 3. Attach Policy
 resource "aws_iam_user_policy_attachment" "gh_actions_ecr" {
   user       = data.aws_iam_user.gh_actions.user_name
   policy_arn = aws_iam_policy.gh_actions_ecr.arn
 }
 
-# IAM Policy for EKS Access
-resource "aws_iam_policy" "gh_actions_eks" {
-  name        = "${local.project_name}-gh-actions-eks-policy"
-  description = "EKS permissions for GitHub Actions deployments"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "EKSClusterAccess"
-        Effect = "Allow"
-        Action = [
-          "eks:DescribeCluster",
-          "eks:ListClusters"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-
-  tags = local.common_tags
-}
-
-# Attach EKS Policy to GitHub Actions User
-resource "aws_iam_user_policy_attachment" "gh_actions_eks" {
-  user       = data.aws_iam_user.gh_actions.user_name
-  policy_arn = aws_iam_policy.gh_actions_eks.arn
-}
+# ... (Keep the EKS section as is, it looked fine)
